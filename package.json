@@ -1,0 +1,13 @@
+{
+  "name": "subscription",
+  "version": "1.0.0",
+  "main": "src/index.ts",
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240405.0",
+    "typescript": "^5.4.5",
+    "wrangler": "^3.48.0"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0"
+  }
+}
