@@ -105,8 +105,22 @@ export default {
           });
         }
 
-        default:
-          return new Response('Invalid gte parameter', { status: 400 });
+        default: {
+          const usage = {
+            message: "Subscription Manager Usage",
+            endpoints: {
+              download: `${env.SUB_PATH}?gte=download`,
+              update: `${env.SUB_PATH}?gte=update[&url=TEMPLATE_URL]`,
+              add: `${env.SUB_PATH}?gte=add&name=NAME&url=PROXY_URL`,
+              del: `${env.SUB_PATH}?gte=del&name=NAME`,
+              list: `${env.SUB_PATH}?gte=list`
+            },
+            note: "Non-matched paths return 404."
+          };
+          return new Response(JSON.stringify(usage, null, 2), {
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
       }
     } catch (e: any) {
       return new Response(`Error: ${e.message}`, { status: 500 });
