@@ -34,10 +34,12 @@ export default {
     try {
       switch (gte) {
         case 'update': {
-          // 更新模板
-          if (!env.Template_link) return new Response('Template_link not configured', { status: 500 });
-          const response = await fetch(env.Template_link);
-          if (!response.ok) throw new Error('Fetch template failed');
+          // 更新模板：优先使用 URL 参数中的 url，其次使用环境变量
+          const templateLink = url.searchParams.get('url') || env.Template_link;
+          if (!templateLink) return new Response('Template link not provided (parameter or environment)', { status: 400 });
+          
+          const response = await fetch(templateLink);
+          if (!response.ok) throw new Error(`Fetch template failed: ${response.statusText}`);
           const rawYaml = await response.text();
           const config: any = yaml.load(rawYaml);
 
