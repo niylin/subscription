@@ -2,12 +2,12 @@ name = "subscription"
 main = "src/index.ts"
 compatibility_date = "2024-04-03"
 
+# [vars]
+# 已经在控制台设置：
+# Template_link = "..."
+# SUB_PATH = "..."
 
-#[vars]
-# 请在控制台设置：
-#Template_link = ""
-#SUB_PATH = "/sub"
-
-#[[kv_namespaces]]
-#binding = "CONFIG_KV"
-#id = "YOUR_KV_ID_HERE"
+# [[kv_namespaces]]
+# 已经在控制台设置：
+# binding = "CONFIG_KV"
+# id = "..."

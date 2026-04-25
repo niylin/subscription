@@ -16,10 +16,12 @@ const STORAGE_KEY = 'config_data';
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
-    const path = url.pathname;
+    // 规范化路径：移除末尾斜杠
+    const path = url.pathname.replace(/\/+$/, '') || '/';
+    const configPath = env.SUB_PATH.replace(/\/+$/, '') || '/';
 
     // 非指定路径一律返回 404
-    if (path !== env.SUB_PATH) {
+    if (path !== configPath) {
       return new Response('Not Found', { status: 404 });
     }
 
