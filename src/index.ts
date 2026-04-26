@@ -4,6 +4,40 @@ export interface Env {
   CONFIG_KV: KVNamespace;
   Template_link: string;
   SUB_PATH: string;
+  ALLOW_URL?: string; // JSON array of allowed URL patterns with wildcards
+}
+
+// 10MB size limit in bytes
+const MAX_TEMPLATE_SIZE = 10 * 1024 * 1024;
+
+// URL pattern matcher with wildcard support
+function isUrlAllowed(url: string, allowList: string[]): boolean {
+  return allowList.some(pattern => {
+    // Convert wildcard pattern to regex
+    // * matches any characters except /
+    // ** matches any characters including /
+    const regexPattern = pattern
+      .replace(/\./g, '\\.')
+      .replace(/\*\*/g, '___DOUBLE_STAR___')
+      .replace(/\*/g, '[^/]*')
+      .replace(/___DOUBLE_STAR___/g, '.*');
+    const regex = new RegExp(`^${regexPattern}$`);
+    return regex.test(url);
+  });
+}
+
+// Parse ALLOW_URL environment variable
+function getAllowedUrls(allowUrlEnv: string | undefined): string[] {
+  if (!allowUrlEnv) return [];
+  try {
+    const parsed = JSON.parse(allowUrlEnv);
+    if (Array.isArray(parsed)) {
+      return parsed;
+    }
+  } catch (e) {
+    console.error('Failed to parse ALLOW_URL:', e);
+  }
+  return [];
 }
 
 interface ConfigData {
@@ -38,9 +72,32 @@ export default {
           const templateLink = url.searchParams.get('url') || env.Template_link;
           if (!templateLink) return new Response('Template link not provided (parameter or environment)', { status: 400 });
           
+          // Check if URL is allowed
+          const allowedUrls = getAllowedUrls(env.ALLOW_URL);
+          if (allowedUrls.length > 0 && !isUrlAllowed(templateLink, allowedUrls)) {
+            return new Response(`URL not allowed: ${templateLink}. Allowed patterns: ${JSON.stringify(allowedUrls)}`, { status: 403 });
+          }
+          
           const response = await fetch(templateLink);
           if (!response.ok) throw new Error(`Fetch template failed: ${response.statusText}`);
+          
+          // Check content size
+          const contentLength = response.headers.get('content-length');
+          if (contentLength) {
+            const sizeInBytes = parseInt(contentLength, 10);
+            if (sizeInBytes > MAX_TEMPLATE_SIZE) {
+              return new Response(`Template size exceeds limit: ${sizeInBytes} bytes > ${MAX_TEMPLATE_SIZE} bytes (10MB)`, { status: 413 });
+            }
+          }
+          
           const rawYaml = await response.text();
+          
+          // Also check actual size after download
+          const actualSizeInBytes = new TextEncoder().encode(rawYaml).length;
+          if (actualSizeInBytes > MAX_TEMPLATE_SIZE) {
+            return new Response(`Template size exceeds limit: ${actualSizeInBytes} bytes > ${MAX_TEMPLATE_SIZE} bytes (10MB)`, { status: 413 });
+          }
+          
           const config: any = yaml.load(rawYaml);
 
           // 提取并更新 Providers

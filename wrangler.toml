@@ -3,11 +3,16 @@ main = "src/index.ts"
 compatibility_date = "2024-04-03"
 
 # [vars]
-# 已经在控制台设置：
-# Template_link = "..."
-# SUB_PATH = "..."
+# Environment variables (configure in Cloudflare console):
+# Template_link = "https://example.com/config.yaml"
+# SUB_PATH = "/sub"
+# ALLOW_URL = ["https://example.com/**", "https://trusted-domain.com/*"]
+#   - JSON array format with wildcard support
+#   - * matches any characters except /
+#   - ** matches any characters including /
+#   - Leave empty or omit to allow all URLs
 
 # [[kv_namespaces]]
-# 已经在控制台设置：
+# Key-Value storage namespace (configure in Cloudflare console):
 # binding = "CONFIG_KV"
-# id = "..."
+# id = "your-kv-namespace-id"
