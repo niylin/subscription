@@ -25,6 +25,22 @@
 
 所有请求必须访问指定的 `SUB_PATH`，并通过 `gte` 参数指定操作。
 
+### 路径正确,但未指定任何参数时,会返回用法提示
+```
+curl https://mihomo*.org/f47b5095-*-c02ec4ac24f8                                                                                             
+{
+  "message": "Subscription Manager Usage",
+  "endpoints": {
+    "download": "/f47b5095-*-c02ec4ac24f8?gte=download",
+    "update": "/f47b5095-*-c02ec4ac24f8?gte=update[&url=TEMPLATE_URL]",
+    "add": "/f47b5095-*-c02ec4ac24f8?gte=add&name=NAME&url=PROXY_URL",
+    "del": "/f47b5095-*-c02ec4ac24f8?gte=del&name=NAME",
+    "list": "/f47b5095-*-c02ec4ac24f8?gte=list"
+  },
+  "note": "Non-matched paths return 404."
+}⏎  
+```
+
 ### 1. 更新模板 (`update`)
 从远程获取基础配置并更新。
 - **示例**: `?gte=update`
