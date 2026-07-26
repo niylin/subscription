@@ -61,7 +61,7 @@ export function renderPanel(state: AppState): Response {
       </div>
     </section>
     <section class="work-grid subscription-grid">
-      <div class="panel-block">
+      <div class="panel-block subscription-panel">
       <div class="block-head">
         <h2>sing-box 订阅集</h2>
         <span>${state.singSubs.length}</span>
@@ -75,16 +75,18 @@ export function renderPanel(state: AppState): Response {
         <form data-api="sing/sub/update" class="row">
           <input type="hidden" name="id" value="${escapeHtml(sub.id)}">
           <div class="item-main">
-            <span>${escapeHtml(sub.name)}</span>
+            <div class="item-title">
+              <span>${escapeHtml(sub.name)}</span>
+              ${renderSubscriptionStatus(sub)}
+            </div>
             <small>${escapeHtml(sub.url)}</small>
           </div>
-          ${renderSubscriptionStatus(sub)}
           <button>更新</button>
           <button formaction="/api/sing/sub/delete" data-delete="${escapeHtml(sub.id)}">删除</button>
         </form>`).join('') || '<p class="muted">暂无 sing-box 订阅集</p>'}</div>
       </div>
 
-      <div class="panel-block">
+      <div class="panel-block subscription-panel">
       <div class="block-head">
         <h2>mihomo proxy-providers</h2>
         <span>${Object.keys(state.mihomoProviders).length}</span>
@@ -281,7 +283,26 @@ function renderGroupRules(state: AppState): string {
 function renderSubscriptionStatus(sub: RemoteItem): string {
   if (sub.status === 'pending') return '<small class="status status-pending">待拉取</small>';
   if (sub.status === 'error') return `<small class="status status-error">失败：${escapeHtml(sub.lastError || '等待重试')}</small>`;
-  return `<small class="status">${escapeHtml(sub.updatedAt || '未更新')}</small>`;
+  return `<small class="status">${escapeHtml(formatShanghaiTime(sub.updatedAt))}</small>`;
+}
+
+function formatShanghaiTime(value?: string): string {
+  if (!value) return '未更新';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  const parts = new Intl.DateTimeFormat('zh-CN', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).formatToParts(date);
+  const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${byType.year}-${byType.month}-${byType.day} ${byType.hour}:${byType.minute}:${byType.second}`;
 }
 
 const PROXY_TYPES = ['vmess', 'vless', 'trojan', 'anytls', 'hysteria', 'hysteria2', 'tuic'];
@@ -325,7 +346,7 @@ function styles(): string {
     a, button { color: #4fc3f7; }
     .top-actions a, .top-actions button { border: 1px solid #333; background: #080808; color: #ccc; padding: 5px 8px; font-size: 12px; line-height: 1.2; text-decoration: none; border-radius: 2px; }
     .top-actions a:hover, .top-actions button:hover { background: #111; color: #fff; border-color: #444; }
-    .dashboard { display: grid; gap: 10px; padding: 12px; max-width: 1320px; margin: 0 auto; }
+    .dashboard { display: grid; gap: 10px; width: min(96vw, 1800px); box-sizing: border-box; padding: 12px; margin: 0 auto; }
     .hero-panel { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: #060606; border: 1px solid #222; border-radius: 2px; padding: 10px 12px; }
     .hero-panel h2 { margin-bottom: 4px; }
     .hero-panel p { margin: 0; font-size: 13px; }
@@ -333,11 +354,12 @@ function styles(): string {
     .stats span { min-width: 92px; display: grid; gap: 2px; padding: 7px 9px; border: 1px solid #222; border-radius: 2px; background: #020202; }
     .stats strong { font-size: 15px; color: #fff; }
     .stats small { font-size: 12px; }
-    .work-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-    .subscription-grid { align-items: start; }
-    .layout { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 12px; max-width: 1320px; margin: 0 auto; }
+    .work-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; align-items: stretch; }
+    .subscription-grid { grid-auto-rows: auto; }
+    .layout { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; width: min(96vw, 1800px); box-sizing: border-box; padding: 12px; margin: 0 auto; }
     section, .panel, .panel-block { background: #060606; border: 1px solid #222; border-radius: 2px; padding: 12px; }
     .panel-block { display: grid; gap: 9px; align-content: start; }
+    .subscription-panel { grid-template-rows: auto auto 1fr; align-content: stretch; height: 100%; }
     .block-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
     .block-head h2 { margin: 0; }
     .block-head span { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 20px; padding: 0 6px; border: 1px solid #2a2a2a; border-radius: 2px; background: #000; color: #888; font-size: 12px; }
@@ -382,11 +404,13 @@ function styles(): string {
     button[formaction], .row button:last-child { border-color: #333; background: #080808; color: #d98d8d; }
     button[formaction]:hover, .row button:last-child:hover { border-color: #7a3a3a; background: #120808; color: #ffb0b0; }
     .table { display: grid; gap: 5px; }
-    .row { grid-template-columns: minmax(180px, 1fr) minmax(120px, 142px) auto auto; align-items: center; gap: 7px; border-top: 1px solid #1c1c1c; padding-top: 5px; }
+    .row { grid-template-columns: minmax(180px, 1fr) auto auto; align-items: center; gap: 7px; border-top: 1px solid #1c1c1c; padding-top: 5px; }
     .provider-row { grid-template-columns: minmax(180px, 1fr) auto; }
     .item-main { display: grid; gap: 3px; min-width: 0; }
-    .item-main span { color: #ddd; }
-    .status { overflow-wrap: anywhere; }
+    .item-title { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+    .item-title span { min-width: 0; color: #ddd; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .item-main > span { color: #ddd; }
+    .status { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .status-pending { color: #d6b35a; }
     .status-error, .error { color: #ff7777; }
     small, .muted { color: #777; overflow-wrap: anywhere; }
