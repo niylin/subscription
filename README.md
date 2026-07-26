@@ -120,7 +120,7 @@ X-API-Token: <token>
 
 ### 添加订阅集
 
-默认添加 mihomo yaml订阅集,并翻译到sing-box配置文件,与在面板添加mihomo订阅集等价。
+默认添加 mihomo yaml订阅集。外部 API 默认采用宽松模式：先保存订阅名称和 URL，清理同名旧 sing-box 订阅内容，并返回待拉取状态，不会因为 DNS 尚未生效或远程 URL 暂时不可访问而添加失败。之后可在面板点击更新完成拉取和翻译。
 
 ```bash
 curl -X POST "https://example.com/external-api" \
@@ -128,6 +128,8 @@ curl -X POST "https://example.com/external-api" \
   -H "Content-Type: application/json" \
   -d '{"name":"provider-name","url":"https://example.com/provider.yaml"}'
 ```
+
+如需恢复同步校验，添加 `strict: true` 或 `deferFetch: false`。严格模式会立即拉取远程内容，失败时直接返回错误。
 
 ### 单独添加 mihomo 订阅集
 
@@ -148,4 +150,3 @@ curl -X POST "https://example.com/external-api" \
   "url": "https://example.com/sing-box.json"
 }
 ```
-

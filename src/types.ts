@@ -21,7 +21,10 @@ export interface RemoteItem {
   id: string;
   name: string;
   url: string;
-  sourceType?: 'sing-box' | 'mihomo' | 'mihomo-inline' | 'mihomo-raw';
+  sourceType?: 'sing-box' | 'sing-box-inline' | 'mihomo' | 'mihomo-inline' | 'mihomo-raw';
+  status?: 'pending' | 'ready' | 'error';
+  lastError?: string;
+  lastAttemptAt?: string;
   updatedAt?: string;
   size?: number;
 }

@@ -1,6 +1,6 @@
 import yaml from 'js-yaml';
 import { COUNTRY_RULES } from './defaults';
-import type { AppState } from './types';
+import type { AppState, RemoteItem } from './types';
 import { escapeHtml } from './utils';
 
 export function renderLogin(error = ''): Response {
@@ -60,22 +60,16 @@ export function renderPanel(state: AppState): Response {
         <span><strong>${escapeHtml(state.singCache.updatedAt ? '已合并' : '未合并')}</strong><small>sing-box 缓存</small></span>
       </div>
     </section>
-    <section class="work-grid">
+    <section class="work-grid subscription-grid">
       <div class="panel-block">
-      <h2>sing-box 订阅集</h2>
-      <form data-api="sing/sub/add" class="inline">
+      <div class="block-head">
+        <h2>sing-box 订阅集</h2>
+        <span>${state.singSubs.length}</span>
+      </div>
+      <form data-api="sing/sub/add" class="subscription-form">
         <input name="name" placeholder="名称" required>
-        <input name="url" placeholder="远程 sing-box 订阅 URL" required>
-        <button>添加并拉取</button>
-      </form>
-      <form data-api="sing/import-mihomo" class="importer">
-        <h3>导入 mihomo proxies</h3>
-        <div class="inline">
-          <input name="name" placeholder="保存名称" required>
-          <input name="url" placeholder="mihomo YAML URL，可留空">
-          <button>翻译并保存</button>
-        </div>
-        <textarea name="content" rows="5" placeholder="也可以直接粘贴包含 proxies: 的 mihomo YAML"></textarea>
+        <input name="url" placeholder="订阅 URL（JSON/YAML 自动识别）" required>
+        <button>添加/覆盖</button>
       </form>
       <div class="table">${state.singSubs.map((sub) => `
         <form data-api="sing/sub/update" class="row">
@@ -84,24 +78,29 @@ export function renderPanel(state: AppState): Response {
             <span>${escapeHtml(sub.name)}</span>
             <small>${escapeHtml(sub.url)}</small>
           </div>
-          <small>${escapeHtml(sub.updatedAt || '未更新')}</small>
+          ${renderSubscriptionStatus(sub)}
           <button>更新</button>
           <button formaction="/api/sing/sub/delete" data-delete="${escapeHtml(sub.id)}">删除</button>
         </form>`).join('') || '<p class="muted">暂无 sing-box 订阅集</p>'}</div>
       </div>
 
       <div class="panel-block">
-      <h2>mihomo proxy-providers</h2>
-      <form data-api="mihomo/provider/add" class="inline">
+      <div class="block-head">
+        <h2>mihomo proxy-providers</h2>
+        <span>${Object.keys(state.mihomoProviders).length}</span>
+      </div>
+      <form data-api="mihomo/provider/add" class="subscription-form">
         <input name="name" placeholder="provider 名称" required>
         <input name="url" placeholder="Clash/Mihomo provider URL" required>
-        <button>添加并翻译</button>
+        <button>添加/覆盖</button>
       </form>
       <div class="table">${Object.entries(state.mihomoProviders).map(([name, provider]) => `
-        <form data-api="mihomo/provider/delete" class="row">
+        <form data-api="mihomo/provider/delete" class="row provider-row">
           <input type="hidden" name="name" value="${escapeHtml(name)}">
-          <span>${escapeHtml(name)}</span>
-          <small>${escapeHtml(provider.url || '')}</small>
+          <div class="item-main">
+            <span>${escapeHtml(name)}</span>
+            <small>${escapeHtml(provider.url || '')}</small>
+          </div>
           <button>删除</button>
         </form>`).join('') || '<p class="muted">暂无 proxy-providers</p>'}</div>
       </div>
@@ -279,6 +278,12 @@ function renderGroupRules(state: AppState): string {
   }).join('');
 }
 
+function renderSubscriptionStatus(sub: RemoteItem): string {
+  if (sub.status === 'pending') return '<small class="status status-pending">待拉取</small>';
+  if (sub.status === 'error') return `<small class="status status-error">失败：${escapeHtml(sub.lastError || '等待重试')}</small>`;
+  return `<small class="status">${escapeHtml(sub.updatedAt || '未更新')}</small>`;
+}
+
 const PROXY_TYPES = ['vmess', 'vless', 'trojan', 'anytls', 'hysteria', 'hysteria2', 'tuic'];
 
 function extractTemplateGroups(state: AppState): Array<{ tag: string; type: string; outbounds: string[]; hasRegionPlaceholder: boolean; groupRefs: string[] }> {
@@ -309,71 +314,89 @@ function isRegionTag(tag: string): boolean {
 
 function styles(): string {
   return `
-    :root { color-scheme: dark; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #101214; color: #edf0f2; }
-    body { margin: 0; background: #101214; }
-    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 16px 22px; border-bottom: 1px solid #30363d; background: #171a1f; position: sticky; top: 0; z-index: 2; }
-    .head-main { display: flex; align-items: center; gap: 18px; min-width: 0; flex: 1; }
-    h1 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: 0; white-space: nowrap; }
-    h2 { margin: 0 0 14px; font-size: 17px; letter-spacing: 0; color: #f6f8fa; }
-    h3 { margin: 2px 0 0; font-size: 14px; letter-spacing: 0; color: #c9d7e8; }
-    nav { display: flex; gap: 6px; flex-wrap: wrap; }
-    a, button { color: #9ec5ff; }
-    .top-actions a, .top-actions button { border: 1px solid #3b4652; background: #20252b; color: #c9d7e8; padding: 7px 9px; font-size: 13px; text-decoration: none; border-radius: 6px; }
-    .dashboard { display: grid; gap: 18px; padding: 22px; max-width: 1440px; margin: 0 auto; }
-    .hero-panel { display: flex; align-items: center; justify-content: space-between; gap: 18px; background: #171a1f; border: 1px solid #30363d; border-radius: 8px; padding: 18px; }
-    .hero-panel p { margin: 6px 0 0; }
-    .stats { display: flex; gap: 10px; flex-wrap: wrap; }
-    .stats span { min-width: 110px; display: grid; gap: 3px; padding: 10px 12px; border: 1px solid #30363d; border-radius: 8px; background: #12161b; }
-    .stats strong { font-size: 18px; color: #f6f8fa; }
-    .work-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
-    .layout { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; padding: 22px; max-width: 1320px; margin: 0 auto; }
-    section, .panel, .panel-block { background: #171a1f; border: 1px solid #30363d; border-radius: 8px; padding: 18px; }
-    form { display: grid; gap: 12px; }
+    :root { color-scheme: dark; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", ui-sans-serif, system-ui, sans-serif; background: #000; color: #ccc; }
+    body { margin: 0; background: #000; color: #ccc; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border-bottom: 1px solid #222; background: #050505; position: sticky; top: 0; z-index: 2; }
+    .head-main { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1; }
+    h1 { margin: 0; font-size: 19px; font-weight: 650; letter-spacing: 0; white-space: nowrap; color: #fff; }
+    h2 { margin: 0 0 9px; font-size: 15px; font-weight: 650; letter-spacing: 0; color: #f2f2f2; }
+    h3 { margin: 2px 0 0; font-size: 13px; letter-spacing: 0; color: #aaa; }
+    nav { display: flex; gap: 5px; flex-wrap: wrap; }
+    a, button { color: #4fc3f7; }
+    .top-actions a, .top-actions button { border: 1px solid #333; background: #080808; color: #ccc; padding: 5px 8px; font-size: 12px; line-height: 1.2; text-decoration: none; border-radius: 2px; }
+    .top-actions a:hover, .top-actions button:hover { background: #111; color: #fff; border-color: #444; }
+    .dashboard { display: grid; gap: 10px; padding: 12px; max-width: 1320px; margin: 0 auto; }
+    .hero-panel { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: #060606; border: 1px solid #222; border-radius: 2px; padding: 10px 12px; }
+    .hero-panel h2 { margin-bottom: 4px; }
+    .hero-panel p { margin: 0; font-size: 13px; }
+    .stats { display: flex; gap: 6px; flex-wrap: wrap; }
+    .stats span { min-width: 92px; display: grid; gap: 2px; padding: 7px 9px; border: 1px solid #222; border-radius: 2px; background: #020202; }
+    .stats strong { font-size: 15px; color: #fff; }
+    .stats small { font-size: 12px; }
+    .work-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .subscription-grid { align-items: start; }
+    .layout { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 12px; max-width: 1320px; margin: 0 auto; }
+    section, .panel, .panel-block { background: #060606; border: 1px solid #222; border-radius: 2px; padding: 12px; }
+    .panel-block { display: grid; gap: 9px; align-content: start; }
+    .block-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .block-head h2 { margin: 0; }
+    .block-head span { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 20px; padding: 0 6px; border: 1px solid #2a2a2a; border-radius: 2px; background: #000; color: #888; font-size: 12px; }
+    form { display: grid; gap: 7px; }
     .inline { grid-template-columns: minmax(120px, 180px) minmax(240px, 1fr) auto; align-items: end; }
+    .subscription-form { grid-template-columns: minmax(110px, 150px) minmax(220px, 1fr) auto; align-items: center; gap: 7px; }
     .header-settings { grid-template-columns: minmax(110px, 150px) minmax(110px, 150px) auto; align-items: end; gap: 8px; max-width: 430px; }
     .header-settings label { font-size: 12px; }
-    .header-settings input { padding: 7px 8px; }
+    .header-settings input { padding: 6px 8px; }
     .wide { grid-column: 1 / -1; }
     .split { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .split button { grid-column: 1 / -1; justify-self: start; }
-    .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .actions { display: flex; gap: 6px; flex-wrap: wrap; }
     .settings-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .settings-grid button { justify-self: start; }
-    .code-block { margin: 0; overflow: auto; white-space: pre-wrap; border: 1px solid #30363d; border-radius: 8px; padding: 14px; background: #0f1216; color: #c9d7e8; }
-    .importer { margin-top: 12px; border-top: 1px solid #252b33; padding-top: 12px; }
-    .advanced-link, .back-link { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; border: 1px solid #3b4652; background: #20252b; color: #c9d7e8; border-radius: 6px; padding: 8px 10px; font-size: 13px; }
+    .code-block { margin: 0; overflow: auto; white-space: pre-wrap; border: 1px solid #222; border-radius: 2px; padding: 10px; background: #000; color: #aaa; }
+    .advanced-link, .back-link { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; border: 1px solid #333; background: #080808; color: #ccc; border-radius: 2px; padding: 5px 8px; font-size: 12px; }
+    .advanced-link:hover, .back-link:hover { background: #111; color: #fff; border-color: #444; }
     .advanced-link { position: fixed; right: 18px; bottom: 18px; z-index: 3; }
-    .group-rules { gap: 14px; }
-    .group-rule { display: grid; gap: 12px; border: 1px solid #252b33; border-radius: 8px; padding: 12px; background: #12161b; }
-    .group-head { display: grid; grid-template-columns: minmax(200px, 1fr) auto auto; gap: 12px; align-items: center; }
-    .group-controls { display: grid; grid-template-columns: minmax(220px, 300px) minmax(340px, 1fr) minmax(0, 1fr); gap: 12px; align-items: start; }
-    .dual-list { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .dual-list span { display: block; margin-bottom: 6px; color: #aeb6bf; font-size: 13px; }
-    .dual-list ul { min-height: 164px; max-height: 220px; overflow: auto; margin: 0; padding: 8px; list-style: none; border: 1px solid #30363d; border-radius: 6px; background: #0f1216; }
-    .dual-list li { padding: 7px 8px; border-radius: 5px; color: #edf0f2; cursor: pointer; user-select: none; }
-    .dual-list li + li { margin-top: 4px; }
-    .dual-list li:hover { background: #20252b; }
-    fieldset { border: 1px solid #30363d; border-radius: 6px; padding: 8px 10px; display: flex; flex-wrap: wrap; gap: 8px 12px; margin: 0; }
-    legend { color: #aeb6bf; padding: 0 4px; font-size: 13px; }
-    .check { display: inline-flex; grid-auto-flow: column; align-items: center; gap: 6px; color: #c9d7e8; white-space: nowrap; }
+    .group-rules { gap: 10px; }
+    .group-rule { display: grid; gap: 9px; border: 1px solid #222; border-radius: 2px; padding: 10px; background: #020202; }
+    .group-head { display: grid; grid-template-columns: minmax(200px, 1fr) auto auto; gap: 10px; align-items: center; }
+    .group-controls { display: grid; grid-template-columns: minmax(220px, 300px) minmax(340px, 1fr) minmax(0, 1fr); gap: 10px; align-items: start; }
+    .dual-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .dual-list span { display: block; margin-bottom: 5px; color: #888; font-size: 12px; }
+    .dual-list ul { min-height: 164px; max-height: 220px; overflow: auto; margin: 0; padding: 6px; list-style: none; border: 1px solid #222; border-radius: 2px; background: #000; }
+    .dual-list li { padding: 6px 7px; border-radius: 2px; color: #ccc; cursor: pointer; user-select: none; }
+    .dual-list li + li { margin-top: 3px; }
+    .dual-list li:hover { background: #111; color: #fff; }
+    fieldset { border: 1px solid #222; border-radius: 2px; padding: 7px 8px; display: flex; flex-wrap: wrap; gap: 7px 10px; margin: 0; }
+    legend { color: #888; padding: 0 4px; font-size: 12px; }
+    .check { display: inline-flex; grid-auto-flow: column; align-items: center; gap: 6px; color: #bbb; white-space: nowrap; }
     .check input { width: auto; margin: 0; }
-    label { display: grid; gap: 6px; font-size: 13px; color: #aeb6bf; }
-    input, textarea, select { box-sizing: border-box; width: 100%; border: 1px solid #3b4652; border-radius: 6px; padding: 9px 10px; font: inherit; color: #edf0f2; background: #0f1216; }
-    input::placeholder { color: #6f7a86; }
-    textarea { resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.45; }
-    button { border: 1px solid #4c8dff; background: #2f6fed; color: #fff; border-radius: 6px; padding: 9px 12px; font: inherit; cursor: pointer; white-space: nowrap; }
-    button[formaction], .row button:last-child { border-color: #d45858; background: #a93838; }
-    .table { display: grid; gap: 8px; }
-    .row { grid-template-columns: minmax(240px, 1fr) 150px auto auto; align-items: center; border-top: 1px solid #252b33; padding-top: 8px; }
-    .item-main { display: grid; gap: 4px; min-width: 0; }
-    small, .muted { color: #8d96a0; overflow-wrap: anywhere; }
+    label { display: grid; gap: 5px; font-size: 12px; color: #888; }
+    input, textarea, select { box-sizing: border-box; width: 100%; border: 1px solid #333; border-radius: 2px; padding: 6px 8px; font: inherit; color: #ddd; background: #000; }
+    input:focus, textarea:focus, select:focus { outline: 1px solid #4fc3f7; outline-offset: 0; border-color: #4fc3f7; }
+    input::placeholder { color: #555; }
+    textarea { resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.42; }
+    button { border: 1px solid #333; background: #080808; color: #ddd; border-radius: 2px; padding: 6px 9px; font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
+    button:hover { background: #111; color: #fff; border-color: #4fc3f7; }
+    .subscription-form button, .actions button:first-child, .settings-grid button, .split button { color: #4fc3f7; border-color: #333; }
+    button[formaction], .row button:last-child { border-color: #333; background: #080808; color: #d98d8d; }
+    button[formaction]:hover, .row button:last-child:hover { border-color: #7a3a3a; background: #120808; color: #ffb0b0; }
+    .table { display: grid; gap: 5px; }
+    .row { grid-template-columns: minmax(180px, 1fr) minmax(120px, 142px) auto auto; align-items: center; gap: 7px; border-top: 1px solid #1c1c1c; padding-top: 5px; }
+    .provider-row { grid-template-columns: minmax(180px, 1fr) auto; }
+    .item-main { display: grid; gap: 3px; min-width: 0; }
+    .item-main span { color: #ddd; }
+    .status { overflow-wrap: anywhere; }
+    .status-pending { color: #d6b35a; }
+    .status-error, .error { color: #ff7777; }
+    small, .muted { color: #777; overflow-wrap: anywhere; }
     .login { min-height: 100vh; display: grid; place-items: center; padding: 18px; box-sizing: border-box; }
     .login .panel { width: min(380px, 100%); }
-    .error { color: #ff8b8b; margin: 0; }
-    #toast { position: fixed; right: 18px; bottom: 18px; background: #edf0f2; color: #101214; padding: 10px 12px; border-radius: 6px; opacity: 0; transform: translateY(8px); transition: 160ms ease; max-width: min(420px, calc(100vw - 36px)); }
+    .error { margin: 0; }
+    #toast { position: fixed; right: 18px; bottom: 18px; background: #eee; color: #000; padding: 9px 11px; border-radius: 2px; opacity: 0; transform: translateY(8px); transition: 160ms ease; max-width: min(420px, calc(100vw - 36px)); }
     #toast.show { opacity: 1; transform: translateY(0); }
     @media (max-width: 980px) { .topbar, .head-main { align-items: flex-start; flex-direction: column; } .header-settings { grid-template-columns: 1fr 1fr auto; max-width: 100%; } }
-    @media (max-width: 860px) { .layout, .dashboard { grid-template-columns: 1fr; padding: 14px; } .work-grid, .hero-panel, .inline, .row, .split, .header-settings, .group-head, .group-controls, .settings-grid { grid-template-columns: 1fr; flex-direction: column; align-items: stretch; } .wide { grid-column: auto; } }
+    @media (max-width: 860px) { .layout, .dashboard { grid-template-columns: 1fr; padding: 10px; } .work-grid, .hero-panel, .inline, .subscription-form, .row, .provider-row, .split, .header-settings, .group-head, .group-controls, .settings-grid { grid-template-columns: 1fr; flex-direction: column; align-items: stretch; } .wide { grid-column: auto; } }
   `;
 }
 

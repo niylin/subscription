@@ -1,17 +1,27 @@
 import { translateMihomoProxies } from './mihomo-to-sing';
-import { saveMihomo } from './state';
+import { saveMihomo, saveSingBox } from './state';
 import { rebuildSingCaches } from './sing-box';
-import type { AppState, Env } from './types';
-import { fetchText, parseConfigText, parseJsonObject } from './utils';
+import type { AppState, Env, JsonMap, RemoteItem } from './types';
+import { fetchText, parseJsonObject } from './utils';
+
+type ParsedRemoteSourceType = 'sing-box' | 'mihomo';
 
 export async function addSingBoxSubscription(env: Env, state: AppState, input: { name: string; url: string; id?: string }): Promise<any> {
-  const config = parseJsonObject(await fetchText(input.url, env));
-  const item = upsertSingBoxConfig(state, input.name, input.url, config, input.id, 'sing-box');
+  const attemptedAt = new Date().toISOString();
+  const parsed = parseSingSubscriptionSource(await fetchText(input.url, env), input.name);
+  const item = upsertSingBoxConfig(state, input.name, input.url, parsed.config, input.id, parsed.sourceType, { status: 'ready', lastAttemptAt: attemptedAt });
   await rebuildSingCaches(env, state);
-  return { item, updatedAt: state.singCache.updatedAt };
+  return { item, imported: parsed.imported, updatedAt: state.singCache.updatedAt };
+}
+
+export async function addPendingSingBoxSubscription(env: Env, state: AppState, input: { name: string; url: string; id?: string }): Promise<any> {
+  const item = upsertSingBoxConfig(state, input.name, input.url, {}, input.id, 'sing-box', { status: 'pending', updatedAt: null });
+  await rebuildSingCaches(env, state);
+  return { item, status: 'pending', updatedAt: state.singCache.updatedAt };
 }
 
 export async function addMihomoSubscription(env: Env, state: AppState, input: { name: string; url: string; id?: string; healthCheck?: string; interval?: number }): Promise<any> {
+  const attemptedAt = new Date().toISOString();
   const source = await fetchText(input.url, env);
   const outbounds = translateMihomoProxies(source);
   if (outbounds.length === 0) throw new Error('No supported proxies found');
@@ -24,7 +34,7 @@ export async function addMihomoSubscription(env: Env, state: AppState, input: { 
   };
   await saveMihomo(env, state);
 
-  const item = upsertSingBoxConfig(state, input.name, input.url, { outbounds }, input.id, 'mihomo');
+  const item = upsertSingBoxConfig(state, input.name, input.url, { outbounds }, input.id, 'mihomo', { status: 'ready', lastAttemptAt: attemptedAt });
   await rebuildSingCaches(env, state);
   return { item, imported: outbounds.length, updatedAt: state.singCache.updatedAt };
 }
@@ -38,77 +48,101 @@ export async function addMihomoDirectSubscription(env: Env, state: AppState, inp
   };
   await saveMihomo(env, state);
 
-  const item = upsertSingBoxConfig(state, input.name, input.url, {}, input.id, 'mihomo-raw');
-  return { item, updatedAt: item.updatedAt };
+  const item = upsertSingBoxConfig(state, input.name, input.url, {}, input.id, 'mihomo-raw', { status: 'pending', updatedAt: null });
+  await rebuildSingCaches(env, state);
+  return { item, status: 'pending', updatedAt: state.singCache.updatedAt };
 }
 
 export async function importMihomoProxies(env: Env, state: AppState, input: { name: string; url?: string; content?: string; id?: string }): Promise<any> {
   const source = input.url ? await fetchText(input.url, env) : input.content || '';
-  if (!source.trim()) throw new Error('Missing mihomo yaml content or url');
-  const outbounds = translateMihomoProxies(source);
-  if (outbounds.length === 0) throw new Error('No supported proxies found');
+  if (!source.trim()) throw new Error('Missing subscription content or url');
 
-  const item = upsertSingBoxConfig(state, input.name, input.url || 'mihomo-proxies://inline', { outbounds }, input.id, input.url ? 'mihomo' : 'mihomo-inline');
+  const attemptedAt = new Date().toISOString();
+  const parsed = parseSingSubscriptionSource(source, input.name);
+  const sourceType = input.url ? parsed.sourceType : parsed.sourceType === 'mihomo' ? 'mihomo-inline' : 'sing-box-inline';
+  const item = upsertSingBoxConfig(state, input.name, input.url || `${sourceType}://inline`, parsed.config, input.id, sourceType, { status: 'ready', lastAttemptAt: attemptedAt });
   await rebuildSingCaches(env, state);
-  return { item, imported: outbounds.length, updatedAt: state.singCache.updatedAt };
+  return { item, imported: parsed.imported, updatedAt: state.singCache.updatedAt };
 }
 
 export async function updateSingBoxSubscription(env: Env, state: AppState, id: string): Promise<any | null> {
   const item = state.singSubs.find((sub) => sub.id === id);
   if (!item) return null;
-  if (item.url.startsWith('mihomo-proxies://')) {
-    item.sourceType = 'mihomo-inline';
-    item.updatedAt = new Date().toISOString();
-    await rebuildSingCaches(env, state);
-    return item;
-  }
+  const attemptedAt = new Date().toISOString();
+  try {
+    if (item.url.startsWith('mihomo-proxies://') || item.url.startsWith('mihomo-inline://') || item.url.startsWith('sing-box-inline://')) {
+      item.sourceType = item.url.startsWith('sing-box-inline://') ? 'sing-box-inline' : 'mihomo-inline';
+      item.status = 'ready';
+      item.lastError = undefined;
+      item.lastAttemptAt = attemptedAt;
+      item.updatedAt = attemptedAt;
+      await rebuildSingCaches(env, state);
+      return item;
+    }
 
-  const sourceType = inferSourceType(state, item);
-  if (sourceType === 'mihomo') {
-    const source = await fetchText(item.url, env);
-    const outbounds = translateMihomoProxies(source);
-    if (outbounds.length === 0) throw new Error(`No supported proxies found: ${item.name}`);
-    const config = { outbounds };
-    item.sourceType = 'mihomo';
-    item.updatedAt = new Date().toISOString();
+    const parsed = parseSingSubscriptionSource(await fetchText(item.url, env), item.name);
+    const config = parsed.config;
+    item.sourceType = parsed.sourceType;
+    item.status = 'ready';
+    item.lastError = undefined;
+    item.lastAttemptAt = attemptedAt;
+    item.updatedAt = attemptedAt;
     item.size = JSON.stringify(config).length;
     state.singSubConfigs[id] = config;
     await rebuildSingCaches(env, state);
     return item;
+  } catch (error: any) {
+    item.status = 'error';
+    item.lastError = error?.message || String(error);
+    item.lastAttemptAt = attemptedAt;
+    await saveSingBox(env, state);
+    throw error;
+  }
+}
+
+function parseSingSubscriptionSource(source: string, name = ''): { config: JsonMap; sourceType: ParsedRemoteSourceType; imported?: number } {
+  const text = source.trim();
+  if (!text) throw new Error('Empty subscription content');
+
+  if (isJsonText(text)) {
+    return { config: parseJsonObject(text), sourceType: 'sing-box' };
   }
 
-  const source = await fetchText(item.url, env);
-  const parsed = parseConfigText(source);
-  const isMihomo = Array.isArray(parsed?.proxies);
-  const config = isMihomo ? { outbounds: translateMihomoProxies(source) } : parsed;
-  if (isMihomo && config.outbounds.length === 0) throw new Error(`No supported proxies found: ${item.name}`);
-  item.sourceType = isMihomo ? 'mihomo' : 'sing-box';
-  item.updatedAt = new Date().toISOString();
-  item.size = JSON.stringify(config).length;
-  state.singSubConfigs[id] = config;
-  await rebuildSingCaches(env, state);
-  return item;
+  const outbounds = translateMihomoProxies(text);
+  if (outbounds.length === 0) throw new Error(name ? `No supported proxies found: ${name}` : 'No supported proxies found');
+  return { config: { outbounds }, sourceType: 'mihomo', imported: outbounds.length };
 }
 
-function inferSourceType(state: AppState, item: any): 'sing-box' | 'mihomo' | 'mihomo-inline' {
-  if (item.sourceType) return item.sourceType;
-  if (item.url.startsWith('mihomo-proxies://')) return 'mihomo-inline';
-  const provider = state.mihomoProviders[item.name];
-  if (provider?.url === item.url) return 'mihomo';
-  return 'sing-box';
+function isJsonText(text: string): boolean {
+  return text.startsWith('{') || text.startsWith('[');
 }
 
-function upsertSingBoxConfig(state: AppState, name: string, url: string, config: any, id?: string,   sourceType: 'sing-box' | 'mihomo' | 'mihomo-inline' | 'mihomo-raw' = 'sing-box'): any {
-  const itemId = id || crypto.randomUUID();
+function upsertSingBoxConfig(
+  state: AppState,
+  name: string,
+  url: string,
+  config: any,
+  id?: string,
+  sourceType: NonNullable<RemoteItem['sourceType']> = 'sing-box',
+  metadata: { status?: RemoteItem['status']; lastError?: string; lastAttemptAt?: string; updatedAt?: string | null } = {},
+): any {
+  const sameNameItem = state.singSubs.find((sub) => sub.name === name);
+  const itemId = id || sameNameItem?.id || crypto.randomUUID();
+  const updatedAt = Object.hasOwn(metadata, 'updatedAt') ? metadata.updatedAt : new Date().toISOString();
   const item = {
     id: itemId,
     name,
     url,
     sourceType,
-    updatedAt: new Date().toISOString(),
+    status: metadata.status || 'ready',
+    lastError: metadata.lastError,
+    lastAttemptAt: metadata.lastAttemptAt,
+    updatedAt: updatedAt || undefined,
     size: JSON.stringify(config).length,
   };
-  state.singSubs = state.singSubs.filter((sub) => sub.id !== itemId).concat(item);
+  const removedIds = state.singSubs.filter((sub) => sub.id !== itemId && sub.name === name).map((sub) => sub.id);
+  state.singSubs = state.singSubs.filter((sub) => sub.id !== itemId && sub.name !== name).concat(item);
+  for (const removedId of removedIds) delete state.singSubConfigs[removedId];
   state.singSubConfigs[itemId] = config;
   return item;
 }

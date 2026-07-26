@@ -1,4 +1,4 @@
-import { addMihomoDirectSubscription, addSingBoxSubscription } from './subscriptions';
+import { addMihomoDirectSubscription, addMihomoSubscription, addPendingSingBoxSubscription, addSingBoxSubscription } from './subscriptions';
 import type { AppState, Env } from './types';
 import { jsonResponse } from './utils';
 
@@ -11,23 +11,32 @@ export async function handleExternalApi(request: Request, env: Env, state: AppSt
   if (!body.name || !body.url) return jsonResponse({ error: 'Missing name or url' }, 400);
 
   const type = String(body.type || body.format || 'mihomo').toLowerCase();
+  const strict = isStrictMode(body);
   if (['sing-box', 'singbox', 'json'].includes(type)) {
-    const result = await addSingBoxSubscription(env, state, { id: body.id, name: String(body.name), url: String(body.url) });
-    return jsonResponse({ ok: true, type: 'sing-box', ...result });
+    const result = strict
+      ? await addSingBoxSubscription(env, state, { id: body.id, name: String(body.name), url: String(body.url) })
+      : await addPendingSingBoxSubscription(env, state, { id: body.id, name: String(body.name), url: String(body.url) });
+    return jsonResponse({ ok: true, type: 'sing-box', mode: strict ? 'strict' : 'deferred', ...result }, strict ? 200 : 202);
   }
 
   if (['mihomo', 'clash', 'clash-meta', 'yaml'].includes(type)) {
-    const result = await addMihomoDirectSubscription(env, state, {
+    const input = {
       id: body.id,
       name: String(body.name),
       url: String(body.url),
       healthCheck: String(body.healthCheck || 'https://cp.cloudflare.com'),
       interval: Number(body.interval || 3600),
-    });
-    return jsonResponse({ ok: true, type: 'mihomo', ...result });
+    };
+    const result = strict ? await addMihomoSubscription(env, state, input) : await addMihomoDirectSubscription(env, state, input);
+    return jsonResponse({ ok: true, type: 'mihomo', mode: strict ? 'strict' : 'deferred', ...result }, strict ? 200 : 202);
   }
 
   return jsonResponse({ error: 'Unsupported type' }, 400);
+}
+
+function isStrictMode(body: any): boolean {
+  if (body.deferFetch === false || String(body.deferFetch).toLowerCase() === 'false') return true;
+  return ['1', 'true', 'yes'].includes(String(body.strict || '').toLowerCase());
 }
 
 function isAuthorized(request: Request, token: string): boolean {
