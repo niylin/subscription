@@ -52,6 +52,27 @@ export async function handleApi(request: Request, env: Env, state: AppState): Pr
       state.mihomoTemplate = parseConfigText(String(body.template || ''));
       state.mihomoTemplateUrl = remoteUrl;
     }
+    const embeddedProviders = state.mihomoTemplate['proxy-providers'] || {};
+    delete state.mihomoTemplate['proxy-providers'];
+    state.mihomoProviders = { ...state.mihomoProviders, ...embeddedProviders };
+    await saveMihomoTemplate(env, state);
+    return jsonResponse({ ok: true });
+  }
+
+  if (action === 'mihomo/provider/add') {
+    if (!body.name || !body.url) return jsonResponse({ error: 'Missing name or url' }, 400);
+    state.mihomoProviders[String(body.name)] = {
+      type: 'http',
+      url: String(body.url),
+      interval: Number(body.interval || 3600),
+      'health-check': { enable: true, url: String(body.healthCheck || 'https://cp.cloudflare.com') },
+    };
+    await saveMihomoTemplate(env, state);
+    return jsonResponse({ ok: true });
+  }
+
+  if (action === 'mihomo/provider/delete') {
+    delete state.mihomoProviders[String(body.name || '')];
     await saveMihomoTemplate(env, state);
     return jsonResponse({ ok: true });
   }

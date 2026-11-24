@@ -1,6 +1,6 @@
 # 分享链接订阅管理
 
-Cloudflare Worker 订阅管理面板。面板维护来源订阅，抓取远程原始配置并提取节点，生成通用 URI 分享链接订阅，也可将节点写入可编辑的 Mihomo 模板。
+Cloudflare Worker 订阅管理面板。面板维护来源订阅，抓取远程原始配置并提取节点，生成通用 URI 分享链接订阅；Mihomo 则独立使用 `proxy-providers` 管理远程订阅，不会与分享链接节点合并。
 
 ## 部署教程
 
@@ -29,13 +29,13 @@ Cloudflare Worker 订阅管理面板。面板维护来源订阅，抓取远程�
 
 - `自动`：根据客户端 User-Agent 返回 Mihomo YAML 或 URI 文本。
 - `V2Ray`：返回 Base64 编码的 URI 文本。
-- `Mihomo`：把提取的节点写入配置页编辑的 Mihomo 模板并返回 YAML。
+- `Mihomo`：返回配置页模板，并写入单独维护的 `proxy-providers` 远程订阅集。
 
 自动识别常见 V2Ray 系客户端（如 v2rayNG、v2rayN、NekoRay、NekoBox、Hiddify），以及 Mihomo、Clash、Stash、Surge、Shadowrocket、Loon、Quantumult、Karing 等客户端。浏览器访问默认返回逐行 URI 文本。
 
 ## Mihomo 模板
 
-在面板的“配置”页面可直接编辑 YAML/JSON 模板，也可填写远程模板 URL 并点击“更新远程模板”。下载 Mihomo 订阅时，Worker 会用当前订阅中的节点替换模板 `proxies` 字段，其他模板设置（例如 `proxy-groups` 和 `rules`）会保留。
+在面板的“配置”页面可直接编辑 YAML/JSON 模板，也可填写远程模板 URL 并点击“更新远程模板”。Mihomo provider 在配置页独立添加或删除，下载配置时写入模板的 `proxy-providers` 字段；Worker 不拉取或合并 provider 节点。模板中的 `proxy-groups` 和 `rules` 等配置会保留。
 
 ## 外部 API
 
