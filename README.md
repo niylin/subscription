@@ -28,10 +28,10 @@ Cloudflare Worker 订阅管理面板。面板维护来源订阅，抓取远程�
 顶部三个按钮只复制链接：
 
 - `自动`：根据客户端 User-Agent 返回 Mihomo YAML 或 URI 文本。
-- `V2Ray`：返回 Base64 编码的 URI 文本。
+- `V2Ray`：返回逐行排列的 URI 文本，方便检查转换结果。
 - `Mihomo`：返回配置页模板，并写入单独维护的 `proxy-providers` 远程订阅集。
 
-自动识别常见 V2Ray 系客户端（如 v2rayNG、v2rayN、NekoRay、NekoBox、Hiddify），以及 Mihomo、Clash、Stash、Surge、Shadowrocket、Loon、Quantumult、Karing 等客户端。浏览器访问默认返回逐行 URI 文本。
+自动识别常见 V2Ray 系客户端（如 v2rayNG、v2rayN、NekoRay、NekoBox、Hiddify），以及 Mihomo、Clash、Stash、Surge、Shadowrocket、Loon、Quantumult、Karing 等客户端。V2Ray 分享链接始终以每行一个 URI 的纯文本返回，方便检查转换结果。
 
 ## Mihomo 模板
 

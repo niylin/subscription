@@ -15,7 +15,5 @@ export async function downloadConfig(request: Request, _env: Env, state: AppStat
     return new Response(yaml.dump(config, { lineWidth: -1, noRefs: true }), { headers: { 'Content-Type': 'application/yaml; charset=utf-8', 'Content-Disposition': 'inline; filename="mihomo.yaml"', 'Cache-Control': 'no-store' } });
   }
   const text = state.shareSubs.flatMap((sub) => sub.links || []).join('\n');
-  const knownClient = /v2ray|nekoray|nekobox|hiddify|shadowrocket|loon|surge|quantumult|surfboard|karing|hysteria/i.test(ua);
-  const output = target === 'v2ray' || knownClient ? btoa(unescape(encodeURIComponent(text))) : text;
-  return new Response(output, { headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', 'Profile-Title': encodeURIComponent('Proxy Subscription'), 'Content-Disposition': 'inline; filename="subscription.txt"' } });
+  return new Response(text, { headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', 'Profile-Title': encodeURIComponent('Proxy Subscription'), 'Content-Disposition': 'inline; filename="subscription.txt"' } });
 }
