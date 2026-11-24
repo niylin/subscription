@@ -8,7 +8,10 @@ export async function downloadConfig(request: Request, _env: Env, state: AppStat
   const mihomo = target === 'mihomo' || (target !== 'v2ray' && /mihomo|clash|stash|verge|meta/i.test(ua));
   if (mihomo) {
     const config = structuredClone(state.mihomoTemplate || {});
-    config['proxy-providers'] = state.mihomoProviders;
+    config['proxy-providers'] = Object.fromEntries(Object.entries(state.mihomoProviders).map(([name, provider]) => [name, {
+      type: 'http',
+      url: typeof provider === 'string' ? provider : provider?.url,
+    }]));
     return new Response(yaml.dump(config, { lineWidth: -1, noRefs: true }), { headers: { 'Content-Type': 'application/yaml; charset=utf-8', 'Content-Disposition': 'inline; filename="mihomo.yaml"', 'Cache-Control': 'no-store' } });
   }
   const text = state.shareSubs.flatMap((sub) => sub.links || []).join('\n');

@@ -61,12 +61,10 @@ export async function handleApi(request: Request, env: Env, state: AppState): Pr
 
   if (action === 'mihomo/provider/add') {
     if (!body.name || !body.url) return jsonResponse({ error: 'Missing name or url' }, 400);
-    state.mihomoProviders[String(body.name)] = {
-      type: 'http',
-      url: String(body.url),
-      interval: Number(body.interval || 3600),
-      'health-check': { enable: true, url: String(body.healthCheck || 'https://cp.cloudflare.com') },
-    };
+    const name = String(body.name).trim();
+    const providerUrl = String(body.url).trim();
+    if (!name || !providerUrl) return jsonResponse({ error: 'Missing name or url' }, 400);
+    state.mihomoProviders[name] = { type: 'http', url: providerUrl };
     await saveMihomoTemplate(env, state);
     return jsonResponse({ ok: true });
   }

@@ -13,7 +13,7 @@ export async function loadState(env: Env): Promise<AppState> {
   const mihomoTemplate = template.template as JsonMap;
   const embedded = mihomoTemplate['proxy-providers'] || {};
   delete mihomoTemplate['proxy-providers'];
-  return { settings: { ...DEFAULT_SETTINGS, ...(settingsRaw ? JSON.parse(settingsRaw) : {}) }, shareSubs, mihomoTemplate, mihomoTemplateUrl: template.url || '', mihomoProviders: { ...embedded, ...(template.providers || {}) } };
+  return { settings: { ...DEFAULT_SETTINGS, ...(settingsRaw ? JSON.parse(settingsRaw) : {}) }, shareSubs, mihomoTemplate, mihomoTemplateUrl: template.url || '', mihomoProviders: { ...(oldMihomo.mihomoProviders || {}), ...embedded, ...(template.providers || {}) } };
 }
 export async function saveSettings(env: Env, state: AppState): Promise<void> { await env.CONFIG_KV.put(SETTINGS_KEY, JSON.stringify(state.settings)); }
 export async function saveSubscriptions(env: Env, state: AppState): Promise<void> { await env.CONFIG_KV.put(SHARE_SUBSCRIPTIONS_KEY, JSON.stringify(state.shareSubs)); }
