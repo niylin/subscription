@@ -1,38 +1,11 @@
-import { buildMihomo } from './mihomo';
-import { rebuildSingCaches } from './sing-box';
 import type { AppState, Env } from './types';
 
-export async function downloadConfig(request: Request, env: Env, state: AppState): Promise<Response> {
+export async function downloadConfig(request: Request, _env: Env, state: AppState): Promise<Response> {
   const url = new URL(request.url);
-  const target = detectTarget(request, url);
-
-  if (target === 'mihomo') {
-    return new Response(buildMihomo(state), {
-      headers: {
-        'Content-Type': 'application/yaml; charset=utf-8',
-        'Content-Disposition': 'attachment; filename="mihomo.yaml"',
-      },
-    });
-  }
-
-  if (!state.singCache.android || !state.singCache.other) await rebuildSingCaches(env, state);
-  const config = target === 'sing-box-android' ? state.singCache.android : state.singCache.other;
-  return new Response(JSON.stringify(config, null, 2), {
-    headers: {
-      'Content-Type': 'application/json; charset=utf-8',
-      'Content-Disposition': `attachment; filename="${target}.json"`,
-    },
-  });
-}
-
-function detectTarget(request: Request, url: URL): 'mihomo' | 'sing-box-android' | 'sing-box' {
-  const target = (url.searchParams.get('target') || url.searchParams.get('format') || '').toLowerCase();
-  if (['mihomo', 'clash', 'clash-meta', 'yaml'].includes(target)) return 'mihomo';
-  if (['sing-box-android', 'android', 'sfa'].includes(target)) return 'sing-box-android';
-  if (['sing-box', 'singbox', 'json'].includes(target)) return 'sing-box';
-
+  const links = state.shareSubs.flatMap((sub) => sub.links || []);
+  const body = links.join('\n');
   const ua = request.headers.get('User-Agent') || '';
-  if (/mihomo|clash|stash|verge|meta/i.test(ua)) return 'mihomo';
-  if (/SFA|sing-box.*android|Android/i.test(ua)) return 'sing-box-android';
-  return 'sing-box';
+  const v2rayClient = /v2ray|nekoray|nekobox|hiddify|sing-box|shadowrocket|loon|surge|stash|clash|mihomo|quantumult|surfboard|karing|hysteria/i.test(ua);
+  const output = v2rayClient ? btoa(unescape(encodeURIComponent(body))) : body;
+  return new Response(output, { headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', 'Profile-Title': encodeURIComponent('Proxy Subscription'), 'Content-Disposition': 'inline; filename="subscription.txt"' } });
 }

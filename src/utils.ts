@@ -47,7 +47,7 @@ export async function fetchText(url: string, env: Env): Promise<string> {
 
   const response = await fetch(url, {
     headers: {
-      'User-Agent': 'sing-box-subscription-manager/1.0',
+      'User-Agent': 'subscription-manager/1.0',
       Accept: 'application/json, application/yaml, text/yaml, text/plain, */*',
     },
   });
