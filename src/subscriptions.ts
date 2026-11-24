@@ -57,10 +57,30 @@ function outboundToUri(n: any): string {
   if (n.type === 'vmess') return `vmess://${btoa(unescape(encodeURIComponent(JSON.stringify({v:'2',ps:n.tag,add:n.server,port:String(port),id:n.uuid,aid:String(n.alter_id||0),scy:n.security||'auto',net:tr.type||'tcp',type:'none',host:tr.headers?.Host||'',path:tr.path||'',tls:tls?'tls':'',sni:tls?.server_name||''}))))}`;
   if (n.type === 'vless') { const qs=[q,`encryption=none`,n.flow?`flow=${encodeURIComponent(n.flow)}`:''].filter(Boolean).join('&'); return `vless://${encodeURIComponent(n.uuid||'')}@${host}:${port}?${qs}#${tag}`; }
   if (n.type === 'trojan') return `trojan://${encodeURIComponent(n.password||'')}@${host}:${port}?${q}#${tag}`;
-  if (n.type === 'hysteria2') { if(n.obfs?.type==='salamander') query.set('obfs','salamander'); if(n.obfs?.password) query.set('obfs-password',n.obfs.password); return `hysteria2://${encodeURIComponent(n.password||'')}@${host}:${port}?${query.toString()}#${tag}`; }
+  if (n.type === 'hysteria2') {
+    const hy2 = new URLSearchParams();
+    if (tls?.server_name) hy2.set('sni', tls.server_name);
+    if (tls?.insecure) hy2.set('insecure', '1');
+    if (tls?.alpn?.length) hy2.set('alpn', tls.alpn.join(','));
+    const ech = getEchConfig(tls?.ech);
+    if (ech) hy2.set('ech', ech);
+    if (n.up_mbps !== undefined) hy2.set('upmbps', String(n.up_mbps));
+    if (n.down_mbps !== undefined) hy2.set('downmbps', String(n.down_mbps));
+    if (n.obfs?.type) hy2.set('obfs', n.obfs.type);
+    if (n.obfs?.password) hy2.set('obfs-password', n.obfs.password);
+    return `hysteria2://${encodeURIComponent(n.password||'')}@${host}:${port}/?${hy2.toString()}#${tag}`;
+  }
   if (n.type === 'hysteria') return `hysteria://${encodeURIComponent(n.auth_str||n.auth||n.password||'')}@${host}:${port}?${q}#${tag}`;
   if (n.type === 'tuic') return `tuic://${encodeURIComponent(n.uuid||'')}:${encodeURIComponent(n.password||'')}@${host}:${port}?${q}#${tag}`;
   if (n.type === 'anytls') return `anytls://${encodeURIComponent(n.password||'')}@${host}:${port}?${q}#${tag}`;
   if (n.type === 'shadowsocks') { const user=btoa(`${n.method}:${n.password}`).replace(/=+$/,''); return `ss://${user}@${host}:${port}#${tag}`; }
   return '';
+}
+
+function getEchConfig(ech: any): string {
+  if (!ech?.enabled || !ech.config) return '';
+  const lines = Array.isArray(ech.config) ? ech.config : String(ech.config).split(/\r?\n/);
+  return lines.map(String).map((line: string) => line.trim())
+    .filter((line: string) => line && !line.startsWith('-----BEGIN ') && !line.startsWith('-----END '))
+    .join('');
 }

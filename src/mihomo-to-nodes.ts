@@ -103,8 +103,9 @@ function translateTuic(proxy: any): any {
 }
 
 function addTls(outbound: any, proxy: any): void {
-  const ech = proxy['ech-opts'] || proxy.ech || {};
-  const enabled = proxy.tls === true || proxy.tls === 'true' || proxy.network === 'grpc' || proxy.network === 'ws' || proxy.sni || ech.enable || ech.enabled;
+  const rawEch = proxy['ech-opts'] || proxy.ech || {};
+  const ech = typeof rawEch === 'string' ? { enable: true, config: rawEch } : rawEch;
+  const enabled = proxy.tls === true || proxy.tls === 'true' || proxy.network === 'grpc' || proxy.network === 'ws' || proxy.sni || ech.enable || ech.enabled || ech.config;
   if (!enabled && !proxy.reality) return;
 
   outbound.tls = {
