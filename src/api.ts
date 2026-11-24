@@ -1,10 +1,10 @@
 import { SESSION_TTL_SECONDS } from './defaults';
 import { createSession, getAdminPassword, getAdminUser, isDefaultCredential, requireAuth } from './auth';
 import { renderLogin } from './panel';
-import { saveSettings, saveSubscriptions } from './state';
+import { saveSettings, saveSubscriptions, saveMihomoTemplate } from './state';
 import { addShareSubscription, updateShareSubscription } from './subscriptions';
 import type { AppState, Env } from './types';
-import { jsonResponse, normalizePath } from './utils';
+import { fetchText, jsonResponse, normalizePath, parseConfigText } from './utils';
 
 export async function handleApi(request: Request, env: Env, state: AppState): Promise<Response> {
   const url = new URL(request.url);
@@ -42,6 +42,20 @@ export async function handleApi(request: Request, env: Env, state: AppState): Pr
     return jsonResponse({ ok: true, settings: state.settings });
   }
 
+  if (action === 'mihomo/template') {
+    const remoteUrl = String(body.url || state.mihomoTemplateUrl || '').trim();
+    if (body.mode === 'fetch') {
+      if (!remoteUrl) return jsonResponse({ error: 'Missing template URL' }, 400);
+      state.mihomoTemplate = parseConfigText(await fetchText(remoteUrl, env));
+      state.mihomoTemplateUrl = remoteUrl;
+    } else {
+      state.mihomoTemplate = parseConfigText(String(body.template || ''));
+      state.mihomoTemplateUrl = remoteUrl;
+    }
+    await saveMihomoTemplate(env, state);
+    return jsonResponse({ ok: true });
+  }
+
   if (action === 'subscription/add') {
     if (!body.name || !body.url) return jsonResponse({ error: 'Missing name or url' }, 400);
     const result = await addShareSubscription(env, state, { id: body.id, name: String(body.name), url: String(body.url) });
@@ -72,7 +86,8 @@ function renderState(state: AppState): Response {
     subscriptions: state.shareSubs,
     publicUrls: {
       auto: state.settings.publicPath,
-      v2ray: state.settings.publicPath,
+      v2ray: `${state.settings.publicPath}?target=v2ray`,
+      mihomo: `${state.settings.publicPath}?target=mihomo`,
     },
   });
 }
