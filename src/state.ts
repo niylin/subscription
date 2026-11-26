@@ -13,7 +13,19 @@ export async function loadState(env: Env): Promise<AppState> {
   const mihomoTemplate = template.template as JsonMap;
   const embedded = mihomoTemplate['proxy-providers'] || {};
   delete mihomoTemplate['proxy-providers'];
-  return { settings: { ...DEFAULT_SETTINGS, ...(settingsRaw ? JSON.parse(settingsRaw) : {}) }, shareSubs, mihomoTemplate, mihomoTemplateUrl: template.url || '', mihomoProviders: { ...(oldMihomo.mihomoProviders || {}), ...embedded, ...(template.providers || {}) } };
+  const mihomoProviders: Record<string, any> = { ...(oldMihomo.mihomoProviders || {}), ...embedded, ...(template.providers || {}) };
+
+  // Bring provider-only legacy entries into the one managed subscription list.
+  for (const [name, provider] of Object.entries(mihomoProviders)) {
+    if (shareSubs.some((sub) => sub.name === name)) continue;
+    const providerUrl = typeof provider === 'string' ? provider : provider?.url;
+    if (providerUrl) shareSubs.push({ id: `legacy-mihomo-${name}`, name, url: providerUrl, links: [], status: 'pending' });
+  }
+
+  // The main subscription is authoritative for its matching provider URL.
+  for (const sub of shareSubs) mihomoProviders[sub.name] = { type: 'http', url: sub.url };
+
+  return { settings: { ...DEFAULT_SETTINGS, ...(settingsRaw ? JSON.parse(settingsRaw) : {}) }, shareSubs, mihomoTemplate, mihomoTemplateUrl: template.url || '', mihomoProviders };
 }
 export async function saveSettings(env: Env, state: AppState): Promise<void> { await env.CONFIG_KV.put(SETTINGS_KEY, JSON.stringify(state.settings)); }
 export async function saveSubscriptions(env: Env, state: AppState): Promise<void> { await env.CONFIG_KV.put(SHARE_SUBSCRIPTIONS_KEY, JSON.stringify(state.shareSubs)); }

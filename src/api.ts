@@ -52,31 +52,13 @@ export async function handleApi(request: Request, env: Env, state: AppState): Pr
       state.mihomoTemplate = parseConfigText(String(body.template || ''));
       state.mihomoTemplateUrl = remoteUrl;
     }
-    const embeddedProviders = state.mihomoTemplate['proxy-providers'] || {};
     delete state.mihomoTemplate['proxy-providers'];
-    state.mihomoProviders = { ...state.mihomoProviders, ...embeddedProviders };
-    await saveMihomoTemplate(env, state);
-    return jsonResponse({ ok: true });
-  }
-
-  if (action === 'mihomo/provider/add') {
-    if (!body.name || !body.url) return jsonResponse({ error: 'Missing name or url' }, 400);
-    const name = String(body.name).trim();
-    const providerUrl = String(body.url).trim();
-    if (!name || !providerUrl) return jsonResponse({ error: 'Missing name or url' }, 400);
-    state.mihomoProviders[name] = { type: 'http', url: providerUrl };
-    await saveMihomoTemplate(env, state);
-    return jsonResponse({ ok: true });
-  }
-
-  if (action === 'mihomo/provider/delete') {
-    delete state.mihomoProviders[String(body.name || '')];
     await saveMihomoTemplate(env, state);
     return jsonResponse({ ok: true });
   }
 
   if (action === 'subscription/add') {
-    if (!body.name || !body.url) return jsonResponse({ error: 'Missing name or url' }, 400);
+    if (!String(body.name || '').trim() || !String(body.url || '').trim()) return jsonResponse({ error: 'Missing name or url' }, 400);
     const result = await addShareSubscription(env, state, { id: body.id, name: String(body.name), url: String(body.url) });
     return jsonResponse({ ok: true, ...result });
   }
@@ -91,8 +73,10 @@ export async function handleApi(request: Request, env: Env, state: AppState): Pr
 
   if (action === 'subscription/delete') {
     const id = String(body.id || '');
+    const removed = state.shareSubs.find((sub) => sub.id === id);
     state.shareSubs = state.shareSubs.filter((sub) => sub.id !== id);
-    await saveSubscriptions(env, state);
+    if (removed) delete state.mihomoProviders[removed.name];
+    await Promise.all([saveSubscriptions(env, state), saveMihomoTemplate(env, state)]);
     return jsonResponse({ ok: true });
   }
 

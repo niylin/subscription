@@ -1,12 +1,16 @@
 import { translateMihomoProxies } from './mihomo-to-nodes';
-import { saveSubscriptions } from './state';
+import { saveMihomoTemplate, saveSubscriptions } from './state';
 import type { AppState, Env, ShareSubscription } from './types';
 import { fetchText, parseConfigText } from './utils';
 
 export async function addShareSubscription(env: Env, state: AppState, input: { name: string; url: string; id?: string }): Promise<ShareSubscription> {
-  const item: ShareSubscription = { id: input.id || crypto.randomUUID(), name: input.name, url: input.url, links: [], status: 'pending' };
+  const name = input.name.trim();
+  const url = input.url.trim();
+  if (!name || !url) throw new Error('Missing name or url');
+  const item: ShareSubscription = { id: input.id || crypto.randomUUID(), name, url, links: [], status: 'pending' };
   state.shareSubs = state.shareSubs.filter((s) => s.id !== item.id && s.name !== item.name).concat(item);
-  await saveSubscriptions(env, state);
+  state.mihomoProviders[item.name] = { type: 'http', url: item.url };
+  await Promise.all([saveSubscriptions(env, state), saveMihomoTemplate(env, state)]);
   return updateShareSubscription(env, state, item.id) as Promise<ShareSubscription>;
 }
 
